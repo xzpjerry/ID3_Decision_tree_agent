@@ -2,6 +2,7 @@ from math import log
 
 SAMPLE_FILE_NAME = "waiting.csv"
 
+# Sources File Handler layer
 def csv_handler(filename):
     # csv to recognizable data type
     num_attributes = 0
@@ -24,6 +25,7 @@ def csv_handler(filename):
             num_labels += 1
     return (attributes, attributes_vals, labels, num_attributes, num_labels)
 
+# Samples Splicer layer
 def get_splited_input(FROM_INPUTS, with_attribute, of_value):
     # A helper function is used to split 
     # the input regarding to their attributes 
@@ -48,6 +50,7 @@ def get_splited_input(FROM_INPUTS, with_attribute, of_value):
         counter += 1
     return (new_attributes, new_attributes_vals, new_labels, new_num_attributes, new_num_labels)
 
+# Computation layer
 def get_entropy(INPUTS):
     labels = INPUTS[2]
     count_dict = {}
@@ -89,6 +92,7 @@ def get_best_attribute(INPUTS):
             rslt = (attribute, possible_attributes_vals)
     return rslt
 
+# Tree Generator layer
 def get_tree(INPUTS):
     max_gain_next_attribute = get_best_attribute(INPUTS)
     labels = INPUTS[2]
