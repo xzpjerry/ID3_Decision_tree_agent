@@ -1,6 +1,11 @@
+from math import log
+
+SAMPLE_FILE_NAME = "waiting.csv"
 
 def csv_handler(filename):
+    # csv to recognizable data type
     num_attributes = 0
+    num_labels = 0
     attributes = []
     attributes_vals = []
     labels = []
@@ -16,69 +21,142 @@ def csv_handler(filename):
             label = raw_attributes_val.pop()
             attributes_vals.append(attributes_val)
             labels.append(label)
-    # assert len(attributes_vals) == len(labels)
-    print(attributes, attributes_vals, labels)
-    return (num_attributes, attributes, attributes_vals, labels)
+            num_labels += 1
+    return (attributes, attributes_vals, labels, num_attributes, num_labels)
 
-class node():
-    def __init__(self, value=None, next_sibiling=None, childs=None):
-        self.value = value
-        self.next_sibiling = next_sibiling
-        self.childs = childs
+def get_splited_input(FROM_INPUTS, with_attribute, of_value):
+    # A helper function is used to split 
+    # the input regarding to their attributes 
+    # and attributes' values into the standard format
+    old_attributes = FROM_INPUTS[0]
+    old_attributes_vals = FROM_INPUTS[1]
+    old_labels = FROM_INPUTS[2]
 
-class decision_tree():
-    def __init__(self, num_attributes, attributes, attributes_vals, labels):
-        self.num_attributes = num_attributes
-        self.attributes = attributes
-        self.attributes_vals = attributes_vals
-        self.labels = labels
+    new_attributes = [x for x in old_attributes if x != with_attribute]
+    new_num_attributes = FROM_INPUTS[3] - 1
+    new_attributes_vals = []
+    new_labels = []
+    new_num_labels = 0
 
-        self.counter = {}
-        for label in self.labels:
-            if label not in self.counter:
-                self.counter[label] = 1
-            else:
-                self.counter[label] += 1
+    counter = 0
+    for bundle in old_attributes_vals:
+        if bundle[with_attribute] == of_value:
+            new_attributes_vals.append(bundle)
+            new_labels.append(old_labels[counter])
+            new_num_labels += 1
 
-        self.entropy = get_entropy(self.labels)
-        self.root = self.id3()
+        counter += 1
+    return (new_attributes, new_attributes_vals, new_labels, new_num_attributes, new_num_labels)
 
-    def get_entropy(self, labels):
-        count_dict = {}
-        total_len = 0
-        for ele in labels:
-            if ele not in count_dict:
-                count_dict[ele] = 1
-            else:
-                count_dict[ele] += 1
-            total_len += 1
-        rslt = 0
-        for key in count_dict.keys():
-            px = count_dict[key]/total_len
-            rslt += (-px*log(px, 2))
-        return rslt
+def get_entropy(INPUTS):
+    labels = INPUTS[2]
+    count_dict = {}
+    total_len = INPUTS[4]
+    for ele in labels:
+        if ele not in count_dict:
+            count_dict[ele] = 1
+        else:
+            count_dict[ele] += 1
+    rslt = 0
+    for key in count_dict.keys():
+        px = count_dict[key]/total_len
+        rslt += (-px*log(px, 2))
+    return rslt
 
-    def id3(self):
-        pass
+def get_best_attribute(INPUTS):
+    attributes = INPUTS[0]
+    attributes_vals = INPUTS[1]
+    num_labels = INPUTS[4]
+    curr_entropy = get_entropy(INPUTS)
 
-    def _id3(self, attributes_vals, available_attributes, labels, curr_node):
-        num_labels = len(labels)
-        if num_labels == 1:
-            curr_node.value = labels[0]
-            return
-        num_attributes_vals = len(attributes_vals)
-        if num_attributes_vals == 0:
-            return
-
-        best_attribute = get_bestAttribute(attributes_vals, available_attributes, labels)
-        for attributes_val in attributes_vals:
-            vi = attributes_val[best_attribute]
-
-    def get_bestAttribute(self, attributes_vals, available_attributes, labels):
-        pass
+    curr_max_info_gain = -1
+    rslt = None
+    for attribute in attributes:
+        # get unique possible values
+        possible_attributes_vals = [x[attribute] for x in attributes_vals]
+        possible_attributes_vals = list(set(possible_attributes_vals))
         
+        # max infogain computation
+        this_attributes_entropy = 0
+        for possible_val in possible_attributes_vals:
+            splited_input = get_splited_input(INPUTS, attribute, possible_val)
+            p = splited_input[4]/num_labels
+            entropy_here = p * get_entropy(splited_input)
+            this_attributes_entropy += entropy_here
+        info_gain = curr_entropy - this_attributes_entropy
+        if info_gain > curr_max_info_gain:
+            curr_max_info_gain = info_gain
+            rslt = (attribute, possible_attributes_vals)
+    return rslt
 
+def get_tree(INPUTS):
+    max_gain_next_attribute = get_best_attribute(INPUTS)
+    labels = INPUTS[2]
+    if labels.count(labels[0]) == INPUTS[-1]:
+        return labels[0]
+    if max_gain_next_attribute == None:
+        return None # If we reach here, it means the sample is not sufficient to generalize a modal
+    max_gain_next_attribute, possible_attributes_vals = max_gain_next_attribute
+    rslt_tree = {max_gain_next_attribute:{}}
+    for possible_attributes_val in possible_attributes_vals:
+        splited_input = get_splited_input(INPUTS, max_gain_next_attribute, possible_attributes_val)
+        rslt_tree[max_gain_next_attribute][possible_attributes_val] = get_tree(splited_input)
+    return rslt_tree
 
 if __name__ == "__main__":
-    INPUT = csv_handler("playtennis.csv")
-    atree= decision_tree(INPUT[0],INPUT[1], INPUT[2], INPUT[3])
+    INPUT = csv_handler(SAMPLE_FILE_NAME)
+    modal = get_tree(INPUT)
+    print(modal)
+    '''
+    With this sample, the modal would look like:
+    {'Pat': {
+        'SOME': 'T', 
+        'NONE': 'F', 
+        'FULL': {
+            'Price': {
+                '$$$': 'F', 
+                '$': {
+                    'Est': {
+                        '10~30': 'T', 
+                        '>60': 'F', 
+                        '30~60': {
+                            'Bar': {
+                                'T': 'T', 
+                                'F': 'F'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    '''
+    # Using pydot we can easily visulize the tree
+    # Credits 
+    # https://stackoverflow.com/questions/13688410/dictionary-object-to-decision-tree-in-pydot
+    '''
+    import pydot
+    def draw(parent_name, child_name):
+        edge = pydot.Edge(parent_name, child_name)
+        graph.add_edge(edge)
+
+    def visit(node, parent=None):
+        for k,v in node.items():
+            if isinstance(v, dict):
+                # We start with the root node whose parent is None
+                # we don't want to graph the None node
+                if parent:
+                    draw(parent, k)
+                visit(v, k)
+            else:
+                draw(parent, k)
+                # drawing the label using a distinct name
+                draw(k, v)
+
+    graph = pydot.Dot(graph_type='graph')
+    visit(modal)
+    graph.write_png('example1_graph.png')
+    '''
+
+
